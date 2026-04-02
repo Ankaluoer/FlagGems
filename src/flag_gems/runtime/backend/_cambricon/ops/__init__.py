@@ -1,5 +1,4 @@
 from .abs import abs, abs_
-from .threshold import threshold, threshold_backward
 from .acos import acos
 from .add import add, add_
 from .addcdiv import addcdiv
@@ -167,6 +166,7 @@ from .sub import sub, sub_
 from .sum import sum, sum_dim, sum_dim_out, sum_out
 from .tan import tan, tan_
 from .tanh import tanh, tanh_, tanh_backward
+from .threshold import threshold, threshold_backward
 from .tile import tile
 from .to import to_copy
 from .topk import topk

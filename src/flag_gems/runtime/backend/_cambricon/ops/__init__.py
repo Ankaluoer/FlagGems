@@ -1,4 +1,5 @@
 from .abs import abs, abs_
+from .threshold import threshold, threshold_backward
 from .acos import acos
 from .add import add, add_
 from .addcdiv import addcdiv
@@ -443,4 +444,6 @@ __all__ = [
     "zero_",
     "zeros",
     "zeros_like",
+    "threshold",
+    "threshold_backward",
 ]

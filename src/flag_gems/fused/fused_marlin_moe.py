@@ -21,7 +21,8 @@ MVP scope:
   - FP8 input:  NOT supported
   - LoRA, clamp_limit, expert_map: NOT supported
 """
-from typing import Any, Callable, List, Optional
+import functools
+from typing import Any, Callable, Optional
 
 import torch
 import triton.language as tl
@@ -37,9 +38,6 @@ from flag_gems.fused.fused_moe import (
 )
 from flag_gems.fused.moe_align_block_size import moe_align_block_size
 from flag_gems.fused.moe_sum import moe_sum
-
-import functools
-
 
 # ----------------------------------------------------------------------------
 # quant_type_id constants — mirror a subset of vLLM scalar_types ids.
@@ -89,9 +87,9 @@ def _fused_marlin_moe_impl(
     assert (
         activation == "silu"
     ), f"Only 'silu' activation is supported, got {activation}"
-    assert use_int4_w4a16 or use_int8_w8a16, (
-        "_fused_marlin_moe_impl expects a quantized path"
-    )
+    assert (
+        use_int4_w4a16 or use_int8_w8a16
+    ), "_fused_marlin_moe_impl expects a quantized path"
 
     activation_enum = MoEActivation.from_str(activation)
 
@@ -347,9 +345,7 @@ def fused_marlin_moe(
     if g_idx1 is not None or g_idx2 is not None:
         raise NotImplementedError("act_order (g_idx) not yet supported in MVP")
     if sort_indices1 is not None or sort_indices2 is not None:
-        raise NotImplementedError(
-            "act_order (sort_indices) not yet supported in MVP"
-        )
+        raise NotImplementedError("act_order (sort_indices) not yet supported in MVP")
     if input_dtype is not None:
         raise NotImplementedError("FP8 / INT8 input quantization not supported")
     if clamp_limit is not None:

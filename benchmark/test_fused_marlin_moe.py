@@ -1,11 +1,6 @@
 import pytest
 import torch
 
-import flag_gems
-
-from . import base
-
-
 # vLLM imports (baseline)
 from vllm.model_executor.layers.fused_moe.fused_marlin_moe import (
     fused_marlin_moe as vllm_fused_marlin_moe,
@@ -16,11 +11,13 @@ from vllm.model_executor.layers.quantization.utils.marlin_utils_test import (
 from vllm.model_executor.layers.quantization.utils.quant_utils import quantize_weights
 from vllm.scalar_type import scalar_types
 
+import flag_gems
+
 # FlagGems wrapper under test
-from flag_gems.fused.fused_marlin_moe import (
-    fused_marlin_moe as gems_fused_marlin_moe,
-    QUANT_TYPE_UINT4B8,
-)
+from flag_gems.fused.fused_marlin_moe import QUANT_TYPE_UINT4B8
+from flag_gems.fused.fused_marlin_moe import fused_marlin_moe as gems_fused_marlin_moe
+
+from . import base
 
 
 def is_cuda_available():
@@ -118,14 +115,26 @@ class FusedMarlinMoEBenchmark(base.Benchmark):
         hidden_states = torch.randn(num_tokens, hidden_size, device=device, dtype=dtype)
 
         # Original FP weights (kept only as source for both quantizers).
-        w1_fp = torch.randn(
-            num_experts, intermediate_size * 2, hidden_size,
-            device=device, dtype=dtype,
-        ) / 10.0
-        w2_fp = torch.randn(
-            num_experts, hidden_size, intermediate_size,
-            device=device, dtype=dtype,
-        ) / 10.0
+        w1_fp = (
+            torch.randn(
+                num_experts,
+                intermediate_size * 2,
+                hidden_size,
+                device=device,
+                dtype=dtype,
+            )
+            / 10.0
+        )
+        w2_fp = (
+            torch.randn(
+                num_experts,
+                hidden_size,
+                intermediate_size,
+                device=device,
+                dtype=dtype,
+            )
+            / 10.0
+        )
 
         # FlagGems wna16 layout
         w1_q_wna16, w1_scale_wna16 = _wna16_quantize_per_expert(w1_fp)
@@ -139,7 +148,9 @@ class FusedMarlinMoEBenchmark(base.Benchmark):
         torch.cuda.empty_cache()
 
         # Routing
-        gating = torch.randn(num_tokens, num_experts, device=device, dtype=torch.float32)
+        gating = torch.randn(
+            num_tokens, num_experts, device=device, dtype=torch.float32
+        )
         topk_weights, topk_ids = torch.topk(torch.softmax(gating, dim=-1), topk, dim=-1)
         topk_weights = topk_weights / topk_weights.sum(dim=-1, keepdim=True)
         # vLLM requires fp32 topk_weights; FlagGems wrapper is dtype-agnostic.
@@ -147,17 +158,31 @@ class FusedMarlinMoEBenchmark(base.Benchmark):
         # Both ops get the same tuple; each picks what it needs.
         yield (
             hidden_states,
-            w1_q_wna16, w2_q_wna16, w1_scale_wna16, w2_scale_wna16,
-            w1_q_marlin, w2_q_marlin, w1_scale_marlin, w2_scale_marlin,
-            topk_weights, topk_ids,
+            w1_q_wna16,
+            w2_q_wna16,
+            w1_scale_wna16,
+            w2_scale_wna16,
+            w1_q_marlin,
+            w2_q_marlin,
+            w1_scale_marlin,
+            w2_scale_marlin,
+            topk_weights,
+            topk_ids,
         )
 
 
 def _vllm_baseline(
     hidden_states,
-    w1_q_wna16, w2_q_wna16, w1_scale_wna16, w2_scale_wna16,
-    w1_q_marlin, w2_q_marlin, w1_scale_marlin, w2_scale_marlin,
-    topk_weights, topk_ids,
+    w1_q_wna16,
+    w2_q_wna16,
+    w1_scale_wna16,
+    w2_scale_wna16,
+    w1_q_marlin,
+    w2_q_marlin,
+    w1_scale_marlin,
+    w2_scale_marlin,
+    topk_weights,
+    topk_ids,
 ):
     """Baseline: vLLM's CUDA Marlin fused_marlin_moe."""
     return vllm_fused_marlin_moe(
@@ -176,17 +201,28 @@ def _vllm_baseline(
 
 def _gems_call(
     hidden_states,
-    w1_q_wna16, w2_q_wna16, w1_scale_wna16, w2_scale_wna16,
-    w1_q_marlin, w2_q_marlin, w1_scale_marlin, w2_scale_marlin,
-    topk_weights, topk_ids,
+    w1_q_wna16,
+    w2_q_wna16,
+    w1_scale_wna16,
+    w2_scale_wna16,
+    w1_q_marlin,
+    w2_q_marlin,
+    w1_scale_marlin,
+    w2_scale_marlin,
+    topk_weights,
+    topk_ids,
 ):
     """FlagGems' Triton wna16 fused_marlin_moe (Phase 2)."""
     return gems_fused_marlin_moe(
         hidden_states=hidden_states,
-        w1=w1_q_wna16, w2=w2_q_wna16,
-        bias1=None, bias2=None,
-        w1_scale=w1_scale_wna16, w2_scale=w2_scale_wna16,
-        topk_weights=topk_weights, topk_ids=topk_ids,
+        w1=w1_q_wna16,
+        w2=w2_q_wna16,
+        bias1=None,
+        bias2=None,
+        w1_scale=w1_scale_wna16,
+        w2_scale=w2_scale_wna16,
+        topk_weights=topk_weights,
+        topk_ids=topk_ids,
         quant_type_id=QUANT_TYPE_UINT4B8,
     )
 
